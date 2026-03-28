@@ -1,0 +1,23 @@
+{
+  "name": "dont-starve-chain",
+  "version": "1.0.0",
+  "description": "Don't Starve style blockchain survival game",
+  "private": true,
+  "workspaces": [
+    "frontend"
+  ],
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "deploy:local": "hardhat run scripts/deploy.js --network localhost",
+    "seed:local": "hardhat run scripts/seed.js --network localhost",
+    "node": "hardhat node",
+    "dev": "npm run node & sleep 3 && npm run deploy:local && npm run seed:local"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "@openzeppelin/contracts": "^5.0.0",
+    "hardhat": "^2.22.0",
+    "dotenv": "^16.4.0"
+  }
+}
