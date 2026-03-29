@@ -1,0 +1,23 @@
+{
+  "name": "axiom-wilds-desktop",
+  "version": "1.0.0",
+  "description": "Axiom Wilds – Desktop Client (Steam)",
+  "main": "main.js",
+  "scripts": {
+    "start":       "electron .",
+    "start:dev":   "ELECTRON_DEV=1 electron .",
+    "build":       "electron-builder --config electron-builder.json",
+    "build:win":   "electron-builder --win --config electron-builder.json",
+    "build:mac":   "electron-builder --mac --config electron-builder.json",
+    "build:linux": "electron-builder --linux --config electron-builder.json"
+  },
+  "dependencies": {
+    "steamworks.js": "^0.3.1"
+  },
+  "devDependencies": {
+    "electron":         "^28.0.0",
+    "electron-builder": "^24.0.0"
+  },
+  "author": "Axiom Wilds Studio",
+  "license": "MIT"
+}

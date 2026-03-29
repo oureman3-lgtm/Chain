@@ -34,7 +34,7 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 contract TileResource is AccessControl {
     bytes32 public constant GAME_ROLE = keccak256("GAME_ROLE");
 
-    uint8 public constant NUM_RESOURCE_TYPES = 12;
+    uint8 public constant NUM_RESOURCE_TYPES = 18;
 
     // ── Per-resource-type configuration ──────────────────────────────────────
 
@@ -44,12 +44,12 @@ contract TileResource is AccessControl {
         uint8   minRegion;  // only present in tiles at this region or higher
     }
 
-    ResourceConfig[12] public resourceConfigs;
+    ResourceConfig[18] public resourceConfigs;
 
     // ── Per-tile state ────────────────────────────────────────────────────────
 
     struct TileStock {
-        uint256[12] stock;
+        uint256[18] stock;
         uint256     lastRegenDay; // last game-day regen was applied
     }
 
@@ -99,6 +99,18 @@ contract TileResource is AccessControl {
         resourceConfigs[10] = ResourceConfig(8,   1,  3);
         // type 11 LavaRock       maxStock=8  baseRegen=1 minRegion=4
         resourceConfigs[11] = ResourceConfig(8,   1,  4);
+        // type 12 Clay           maxStock=40 baseRegen=6 minRegion=0
+        resourceConfigs[12] = ResourceConfig(40,  6,  0);
+        // type 13 Coal           maxStock=25 baseRegen=4 minRegion=1
+        resourceConfigs[13] = ResourceConfig(25,  4,  1);
+        // type 14 Sulfur         maxStock=15 baseRegen=2 minRegion=2
+        resourceConfigs[14] = ResourceConfig(15,  2,  2);
+        // type 15 CrystalShard   maxStock=20 baseRegen=3 minRegion=1
+        resourceConfigs[15] = ResourceConfig(20,  3,  1);
+        // type 16 Vine           maxStock=35 baseRegen=6 minRegion=0
+        resourceConfigs[16] = ResourceConfig(35,  6,  0);
+        // type 17 HerbalRoot     maxStock=30 baseRegen=5 minRegion=0
+        resourceConfigs[17] = ResourceConfig(30,  5,  0);
     }
 
     // ── WorldMap reference update ─────────────────────────────────────────────

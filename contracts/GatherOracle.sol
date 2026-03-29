@@ -8,25 +8,38 @@ import "./ItemNFT.sol";
 /**
  * @title GatherOracle
  * @notice Resolves gathering outcomes using on-chain pseudorandom + character luck.
- *         Also provides localExplore() for probabilistic tile exploration.
+ *         Integrates TileResource (shared pool), QuestSystem notifications,
+ *         and CharacterNFT special abilities.
  *
- * Standard resource types (passed as `resourceType`):
- *   0 = Tree     → Wood (itemType 1)
- *   1 = Rock     → Flint (itemType 2)
- *   2 = Grass    → Grass (itemType 3)
- *   3 = BerryBush → Berry (itemType 4)
- *   4 = IronDeposit → IronOre (itemType 13) [region ≥ 1]
- *   5 = Mushrooms   → Mushroom (itemType 15) [region ≥ 1]
- *   6 = FishingSpot → Fish (itemType 16)
- *   7 = Beehive     → Honey (itemType 17)
- *   8 = HardwoodTree → Hardwood (itemType 18) [region ≥ 1]
+ * Resource node types:
+ *  0 = Tree           → Wood (1)
+ *  1 = Rock           → Flint (2)
+ *  2 = GrassPatch     → Grass (3)
+ *  3 = BerryBush      → Berry (4)
+ *  4 = IronDeposit    → IronOre (13)      [region ≥ 1]
+ *  5 = MushroomPatch  → Mushroom (15)     [region ≥ 1]
+ *  6 = FishingSpot    → Fish (16)
+ *  7 = Beehive        → Honey (17)
+ *  8 = HardwoodTree   → Hardwood (18)     [region ≥ 1]
+ *  9 = ClayDeposit    → Clay (37)
+ * 10 = CoalSeam       → Coal (38)         [region ≥ 1]
+ * 11 = SulfurVent     → Sulfur (39)       [region ≥ 2]
+ * 12 = CrystalCluster → CrystalShard (40) [region ≥ 1]
+ * 13 = VinePatch      → Vine (41)
+ * 14 = HerbalGarden   → HerbalRoot (42)
+ * 15 = SpiderNest     → SpiderSilk (43)   [region ≥ 1]; chance for SpiderFang(62)
+ * 16 = GlacierFissure → GlacierIce (44)   [region ≥ 3]
  *
- * Local exploration outcomes (localExplore):
- *   60% – common resource (1 item)
- *   15% – rare resource (1 higher-tier item)
- *   20% – nothing found
- *    4% – event hint (no item, emits LocalEventFound)
- *    1% – hidden stash (2-3 items)
+ * Special ability bonuses (from CharacterNFT):
+ *   SA=3 LUCKY_HARVEST (Lila)    : gather amount ×1.5 (rounded up)
+ *   SA=1 FIRE_AFFINITY (Kira)    : +1 extra on SulfurVent / Meteor-region nodes
+ *
+ * localExplore outcomes:
+ *   ≥ nothing_threshold% – nothing found
+ *   4%  – event hint (LocalEventFound emitted)
+ *   1%  – hidden stash (2-3 items)
+ *   15% – rare item
+ *   rest – common item
  */
 contract GatherOracle is AccessControl {
     bytes32 public constant GAME_ROLE = keccak256("GAME_ROLE");
@@ -34,20 +47,19 @@ contract GatherOracle is AccessControl {
     CharacterNFT public characterNFT;
     ItemNFT      public itemNFT;
 
-    address public tileResource; // TileResource contract (optional integration)
-    address public questSystem;  // QuestSystem contract (optional notifications)
+    address public tileResource;
+    address public questSystem;
 
-    // nonce per character to prevent seed reuse
     mapping(uint256 => uint256) public gatherNonce;
     mapping(uint256 => uint256) public exploreNonce;
 
-    // resource type => (itemType, baseAmount, luckDivisor)
     struct ResourceDef {
         uint256 itemType;
         uint256 baseAmount;
-        uint256 luckDivisor; // extra = luck / luckDivisor  (integer)
-        uint8   tileResourceType; // matching TileResource index (255 = not pool-backed)
+        uint256 luckDivisor;     // extra = luck / luckDivisor
+        uint8   tileResourceType; // TileResource pool index (255 = not pool-backed)
     }
+
     mapping(uint256 => ResourceDef) public resources;
 
     // ── Events ────────────────────────────────────────────────────────────────
@@ -64,7 +76,7 @@ contract GatherOracle is AccessControl {
         address indexed player,
         uint256 indexed characterId,
         uint256 tileId,
-        uint8   outcome,   // 0=nothing, 1=common, 2=rare, 3=event, 4=stash
+        uint8   outcome,    // 0=nothing,1=common,2=rare,3=event,4=stash
         uint256 itemType,
         uint256 amount
     );
@@ -83,47 +95,33 @@ contract GatherOracle is AccessControl {
         characterNFT = CharacterNFT(_characterNFT);
         itemNFT      = ItemNFT(_itemNFT);
 
-        // Tree → Wood: base 1, max +luck/10 extra, tileResourceType=0
-        resources[0] = ResourceDef(1,  1, 10, 0);
-        // Rock → Flint: base 1, max +luck/15 extra, tileResourceType=1
-        resources[1] = ResourceDef(2,  1, 15, 1);
-        // Grass: base 1, max +luck/8 extra, tileResourceType=2
-        resources[2] = ResourceDef(3,  1,  8, 2);
-        // BerryBush → Berry: base 1, max +luck/10 extra, tileResourceType=3
-        resources[3] = ResourceDef(4,  1, 10, 3);
-        // IronDeposit → IronOre: base 1, max +luck/12 extra, tileResourceType=4
-        resources[4] = ResourceDef(13, 1, 12, 4);
-        // Mushrooms → Mushroom: base 1, max +luck/8 extra, tileResourceType=5
-        resources[5] = ResourceDef(15, 1,  8, 5);
-        // FishingSpot → Fish: base 1, max +luck/10 extra, tileResourceType=6
-        resources[6] = ResourceDef(16, 1, 10, 6);
-        // Beehive → Honey: base 1, max +luck/15 extra, tileResourceType=7
-        resources[7] = ResourceDef(17, 1, 15, 7);
-        // HardwoodTree → Hardwood: base 1, max +luck/12 extra, tileResourceType=8
-        resources[8] = ResourceDef(18, 1, 12, 8);
+        // itemType, baseAmt, luckDiv, tileRT
+        resources[0]  = ResourceDef(1,  1, 10, 0);   // Tree → Wood
+        resources[1]  = ResourceDef(2,  1, 15, 1);   // Rock → Flint
+        resources[2]  = ResourceDef(3,  1,  8, 2);   // GrassPatch → Grass
+        resources[3]  = ResourceDef(4,  1, 10, 3);   // BerryBush → Berry
+        resources[4]  = ResourceDef(13, 1, 12, 4);   // IronDeposit → IronOre
+        resources[5]  = ResourceDef(15, 1,  8, 5);   // MushroomPatch → Mushroom
+        resources[6]  = ResourceDef(16, 1, 10, 6);   // FishingSpot → Fish
+        resources[7]  = ResourceDef(17, 1, 15, 7);   // Beehive → Honey
+        resources[8]  = ResourceDef(18, 1, 12, 8);   // HardwoodTree → Hardwood
+        resources[9]  = ResourceDef(37, 1, 10, 12);  // ClayDeposit → Clay
+        resources[10] = ResourceDef(38, 1, 12, 13);  // CoalSeam → Coal
+        resources[11] = ResourceDef(39, 1, 15, 14);  // SulfurVent → Sulfur
+        resources[12] = ResourceDef(40, 1, 12, 15);  // CrystalCluster → CrystalShard
+        resources[13] = ResourceDef(41, 1,  8, 16);  // VinePatch → Vine
+        resources[14] = ResourceDef(42, 1, 10, 17);  // HerbalGarden → HerbalRoot
+        resources[15] = ResourceDef(43, 1, 12, 255); // SpiderNest → SpiderSilk (not pool)
+        resources[16] = ResourceDef(44, 1, 18, 255); // GlacierFissure → GlacierIce (not pool)
     }
 
     // ── Setters ───────────────────────────────────────────────────────────────
 
-    function setTileResource(address _tileResource) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        tileResource = _tileResource;
-    }
-
-    function setQuestSystem(address _questSystem) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        questSystem = _questSystem;
-    }
+    function setTileResource(address _t) external onlyRole(DEFAULT_ADMIN_ROLE) { tileResource = _t; }
+    function setQuestSystem(address _q)  external onlyRole(DEFAULT_ADMIN_ROLE) { questSystem  = _q; }
 
     // ── Standard gather ───────────────────────────────────────────────────────
 
-    /**
-     * @notice Called by the player when they gather a resource node.
-     *         Consumes from the shared tile pool if TileResource is set.
-     *         Returns the minted item token IDs.
-     * @param characterId   Character NFT token ID.
-     * @param resourceType  Node type (0-8).
-     * @param tileId        Current tile (used for pool consumption).
-     * @param gameDay       Current game day (for regen).
-     */
     function resolveGather(
         uint256 characterId,
         uint256 resourceType,
@@ -139,22 +137,28 @@ contract GatherOracle is AccessControl {
 
         CharacterNFT.CharacterStats memory stats = characterNFT.getStats(characterId);
 
-        // Pseudorandom seed
         uint256 nonce = gatherNonce[characterId]++;
         uint256 seed  = uint256(keccak256(abi.encodePacked(
-            blockhash(block.number - 1),
-            characterId,
-            nonce,
-            tileId
+            blockhash(block.number - 1), characterId, nonce, tileId
         )));
 
-        // amount = baseAmount + random bonus scaled by luck
+        // Base amount
         uint256 luckBonus = stats.luck / res.luckDivisor;
-        uint256 extra = luckBonus > 0 ? (seed % (luckBonus + 1)) : 0;
-        uint256 amount = res.baseAmount + extra;
-        if (amount > 5) amount = 5;
+        uint256 extra     = luckBonus > 0 ? seed % (luckBonus + 1) : 0;
+        uint256 amount    = res.baseAmount + extra;
 
-        // ── Consume from shared tile pool (clamp if insufficient) ────────────
+        // SA=3 LUCKY_HARVEST: ×1.5 (rounded up)
+        if (stats.specialAbility == 3) {
+            amount = (amount * 3 + 1) / 2;
+        }
+        // SA=1 FIRE_AFFINITY: +1 on sulfur/lava nodes
+        if (stats.specialAbility == 1 && resourceType == 11) {
+            amount += 1;
+        }
+
+        if (amount > 6) amount = 6; // hard cap
+
+        // Consume from shared tile pool
         if (tileResource != address(0) && res.tileResourceType != 255) {
             (bool ok, bytes memory data) = tileResource.staticcall(
                 abi.encodeWithSignature(
@@ -163,8 +167,8 @@ contract GatherOracle is AccessControl {
                 )
             );
             if (ok && data.length >= 32) {
-                uint256 available = abi.decode(data, (uint256));
-                if (available < amount) amount = available;
+                uint256 avail = abi.decode(data, (uint256));
+                if (avail < amount) amount = avail;
                 if (amount > 0) {
                     tileResource.call(
                         abi.encodeWithSignature(
@@ -182,9 +186,15 @@ contract GatherOracle is AccessControl {
             tokenIds[i] = itemNFT.mintItem(owner, res.itemType);
         }
 
+        // SpiderNest: small chance to also drop SpiderFang(62)
+        if (resourceType == 15 && amount > 0) {
+            if ((seed >> 16) % 4 == 0) { // 25% chance
+                itemNFT.mintItem(owner, 62);
+            }
+        }
+
         emit GatherResolved(owner, characterId, resourceType, res.itemType, amount);
 
-        // ── Notify QuestSystem ───────────────────────────────────────────────
         if (questSystem != address(0) && amount > 0) {
             questSystem.call(
                 abi.encodeWithSignature(
@@ -197,22 +207,6 @@ contract GatherOracle is AccessControl {
 
     // ── Local exploration ─────────────────────────────────────────────────────
 
-    /**
-     * @notice Probabilistic tile exploration (costs 5 AP, ~instant).
-     *         Outcome distribution (luck shifts rare/stash thresholds slightly):
-     *           0-19  (20%) → nothing
-     *           20-23  (4%) → event hint (emits LocalEventFound, no item)
-     *           24     (1%) → hidden stash (2-3 random items)
-     *           25-39  (15%) → rare item
-     *           40-99  (60%) → common item
-     *         Luck ≥ 20: nothingThreshold drops to 15%
-     *         Luck ≥ 40: nothingThreshold drops to 10%
-     *
-     * @param characterId  Character NFT token ID.
-     * @param tileId       Current tile.
-     * @param regionId     Current region (determines available item pools).
-     * @param gameDay      Current game day.
-     */
     function localExplore(
         uint256 characterId,
         uint256 tileId,
@@ -227,41 +221,29 @@ contract GatherOracle is AccessControl {
 
         uint256 nonce = exploreNonce[characterId]++;
         uint256 seed  = uint256(keccak256(abi.encodePacked(
-            blockhash(block.number - 1),
-            characterId,
-            tileId,
-            nonce,
-            "explore"
+            blockhash(block.number - 1), characterId, tileId, nonce, "explore"
         )));
 
         uint256 roll = seed % 100;
 
-        // Luck shifts nothing threshold
+        // Luck lowers nothing threshold; LUCKY_HARVEST halves it further
         uint256 nothingMax = stats.luck >= 40 ? 10 : stats.luck >= 20 ? 15 : 20;
+        if (stats.specialAbility == 3) nothingMax = nothingMax / 2 + 1;
 
         if (roll < nothingMax) {
-            // Nothing found
-            outcome  = 0;
-            itemType = 0;
-            amount   = 0;
+            outcome = 0; itemType = 0; amount = 0;
         } else if (roll < nothingMax + 4) {
-            // Event hint
-            outcome  = 3;
-            itemType = 0;
-            amount   = 0;
+            outcome = 3; itemType = 0; amount = 0;
             emit LocalEventFound(characterId, tileId, gameDay);
         } else if (roll < nothingMax + 5) {
-            // Hidden stash: 2-3 items
-            outcome  = 4;
-            amount   = 2 + (seed >> 8) % 2; // 2 or 3
+            outcome = 4;
+            amount   = 2 + (seed >> 8) % 2;
             itemType = _pickRareItem(seed >> 16, regionId);
-        } else if (roll < nothingMax + 5 + 15) {
-            // Rare item
+        } else if (roll < nothingMax + 20) {
             outcome  = 2;
             amount   = 1;
             itemType = _pickRareItem(seed >> 8, regionId);
         } else {
-            // Common item
             outcome  = 1;
             amount   = 1;
             itemType = _pickCommonItem(seed >> 8, regionId);
@@ -272,7 +254,6 @@ contract GatherOracle is AccessControl {
             for (uint256 i = 0; i < amount; i++) {
                 itemNFT.mintItem(owner, itemType);
             }
-            // Notify quest system
             if (questSystem != address(0)) {
                 questSystem.call(
                     abi.encodeWithSignature(
@@ -290,39 +271,44 @@ contract GatherOracle is AccessControl {
 
     function _pickCommonItem(uint256 seed, uint8 regionId) internal pure returns (uint256) {
         if (regionId == 0) {
-            uint256[4] memory pool = [uint256(1), 2, 3, 4]; // Wood, Flint, Grass, Berry
-            return pool[seed % 4];
+            // Grasslands: wood, flint, grass, berry, clay, vine, herb
+            uint256[7] memory pool = [uint256(1), 2, 3, 4, 37, 41, 42];
+            return pool[seed % 7];
         } else if (regionId == 1) {
-            uint256[5] memory pool = [uint256(1), 13, 15, 3, 4]; // Wood, IronOre, Mushroom, Grass, Berry
-            return pool[seed % 5];
+            // Dark Forest: iron, mushroom, hardwood, coal, crystal, spider silk
+            uint256[6] memory pool = [uint256(13), 15, 18, 38, 40, 43];
+            return pool[seed % 6];
         } else if (regionId == 2) {
-            uint256[4] memory pool = [uint256(13), 19, 15, 18]; // IronOre, AncientFragment, Mushroom, Hardwood
-            return pool[seed % 4];
+            // Ruins: iron, ancient fragment, mushroom, hardwood, sulfur
+            uint256[5] memory pool = [uint256(13), 19, 15, 18, 39];
+            return pool[seed % 5];
         } else if (regionId == 3) {
-            uint256[3] memory pool = [uint256(20), 11, 19]; // ShadowCrystal, ShadowMaterial, AncientFragment
-            return pool[seed % 3];
+            // Shadow Realm: shadow crystal, shadow material, void essence, coal
+            uint256[4] memory pool = [uint256(20), 11, 45, 38];
+            return pool[seed % 4];
         } else {
-            uint256[3] memory pool = [uint256(21), 13, 19]; // LavaRock, IronOre, AncientFragment
-            return pool[seed % 3];
+            // Volcano: lava rock, sulfur, iron, coal, void essence
+            uint256[5] memory pool = [uint256(21), 39, 13, 38, 45];
+            return pool[seed % 5];
         }
     }
 
     function _pickRareItem(uint256 seed, uint8 regionId) internal pure returns (uint256) {
         if (regionId == 0) {
-            uint256[2] memory pool = [uint256(9), 10]; // Leather, Bone
-            return pool[seed % 2];
-        } else if (regionId == 1) {
-            uint256[3] memory pool = [uint256(18), 9, 15]; // Hardwood, Leather, Mushroom
+            uint256[3] memory pool = [uint256(9), 10, 41]; // Leather, Bone, Vine
             return pool[seed % 3];
+        } else if (regionId == 1) {
+            uint256[4] memory pool = [uint256(18), 62, 40, 63]; // Hardwood, SpiderFang, Crystal, WolfPelt
+            return pool[seed % 4];
         } else if (regionId == 2) {
-            uint256[2] memory pool = [uint256(19), 18]; // AncientFragment, Hardwood
-            return pool[seed % 2];
+            uint256[3] memory pool = [uint256(19), 46, 18]; // AncientFragment, AncientAlloy, Hardwood
+            return pool[seed % 3];
         } else if (regionId == 3) {
-            uint256[2] memory pool = [uint256(20), 11]; // ShadowCrystal, ShadowMaterial
-            return pool[seed % 2];
+            uint256[3] memory pool = [uint256(20), 65, 64]; // ShadowCrystal, VoidShard, VoidCore
+            return pool[seed % 3];
         } else {
-            uint256[2] memory pool = [uint256(21), 20]; // LavaRock, ShadowCrystal
-            return pool[seed % 2];
+            uint256[3] memory pool = [uint256(21), 66, 65]; // LavaRock, GlacierCrystal, VoidShard
+            return pool[seed % 3];
         }
     }
 }

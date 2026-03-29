@@ -48,21 +48,21 @@ describe("GameRegistry – AP budget anti-tamper", function () {
   });
 
   it("registers a player and mints character", async () => {
-    await gameRegistry.connect(player1).registerPlayer("wilson");
+    await gameRegistry.connect(player1).registerPlayer("ryn");
     expect(await gameRegistry.isRegistered(player1.address)).to.be.true;
     const charId = await gameRegistry.getCharacterId(player1.address);
     expect(charId).to.equal(1);
   });
 
   it("prevents duplicate registration", async () => {
-    await gameRegistry.connect(player1).registerPlayer("wilson");
+    await gameRegistry.connect(player1).registerPlayer("ryn");
     await expect(
-      gameRegistry.connect(player1).registerPlayer("willow")
+      gameRegistry.connect(player1).registerPlayer("kira")
     ).to.be.revertedWith("GameRegistry: already registered");
   });
 
   it("accepts valid commitDay within AP budget", async () => {
-    await gameRegistry.connect(player1).registerPlayer("wilson");
+    await gameRegistry.connect(player1).registerPlayer("ryn");
     // gather×5(25AP) + craft×2(20AP) + eat×2(4AP) = 49 AP  ≤ 100
     await expect(
       gameRegistry.connect(player1).commitDay(
@@ -72,7 +72,7 @@ describe("GameRegistry – AP budget anti-tamper", function () {
   });
 
   it("rejects commitDay that exceeds AP budget", async () => {
-    await gameRegistry.connect(player1).registerPlayer("wilson");
+    await gameRegistry.connect(player1).registerPlayer("ryn");
     // gather×20(100AP) + craft×1(10AP) = 110 AP → exceeds 100
     await expect(
       gameRegistry.connect(player1).commitDay(
@@ -82,7 +82,7 @@ describe("GameRegistry – AP budget anti-tamper", function () {
   });
 
   it("rejects combatAP alone exceeding budget", async () => {
-    await gameRegistry.connect(player1).registerPlayer("wilson");
+    await gameRegistry.connect(player1).registerPlayer("ryn");
     await expect(
       gameRegistry.connect(player1).commitDay(
         ...makeCommitArgs({ combatAP: 101, daysSurvived: 1, newLevel: 1 })
@@ -91,7 +91,7 @@ describe("GameRegistry – AP budget anti-tamper", function () {
   });
 
   it("rejects decreasing daysSurvived", async () => {
-    await gameRegistry.connect(player1).registerPlayer("wilson");
+    await gameRegistry.connect(player1).registerPlayer("ryn");
     await gameRegistry.connect(player1).commitDay(
       ...makeCommitArgs({ gatherCount: 1, daysSurvived: 5, newLevel: 1 })
     );
@@ -103,7 +103,7 @@ describe("GameRegistry – AP budget anti-tamper", function () {
   });
 
   it("rejects level decrease", async () => {
-    await gameRegistry.connect(player1).registerPlayer("wilson");
+    await gameRegistry.connect(player1).registerPlayer("ryn");
     await gameRegistry.connect(player1).commitDay(
       ...makeCommitArgs({ gatherCount: 1, daysSurvived: 3, newLevel: 2 })
     );
@@ -115,7 +115,7 @@ describe("GameRegistry – AP budget anti-tamper", function () {
   });
 
   it("burns provided itemIdsToDestroy on commitDay", async () => {
-    await gameRegistry.connect(player1).registerPlayer("wilson");
+    await gameRegistry.connect(player1).registerPlayer("ryn");
 
     // Give player a berry (type 4) to eat
     const GAME_ROLE = ethers.keccak256(ethers.toUtf8Bytes("GAME_ROLE"));
@@ -129,7 +129,7 @@ describe("GameRegistry – AP budget anti-tamper", function () {
   });
 
   it("records death when died=true", async () => {
-    await gameRegistry.connect(player1).registerPlayer("wilson");
+    await gameRegistry.connect(player1).registerPlayer("ryn");
     await gameRegistry.connect(player1).commitDay(
       ...makeCommitArgs({ daysSurvived: 1, newLevel: 1, died: true })
     );
@@ -139,7 +139,7 @@ describe("GameRegistry – AP budget anti-tamper", function () {
   });
 
   it("rest bonus reduces net AP (rest×1 costs 20 gross but refunds 10 → 10 net)", async () => {
-    await gameRegistry.connect(player1).registerPlayer("wilson");
+    await gameRegistry.connect(player1).registerPlayer("ryn");
     // idle×1 = 50 AP, rest×1 = 20 AP gross - 10 bonus = 10 net, total net = 60 AP ≤ 100
     await expect(
       gameRegistry.connect(player1).commitDay(

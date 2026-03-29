@@ -84,9 +84,18 @@ contract CombatSystem is AccessControl {
         itemNFT      = ItemNFT(_itemNFT);
 
         // Weapon bonuses (itemType → bonus attackPower)
-        weaponBonus[5] = 15;  // Axe
-        weaponBonus[8] = 35;  // Sword
-        weaponBonus[6] = 5;   // Torch (improvised)
+        weaponBonus[5]  = 15;  // Axe
+        weaponBonus[6]  = 5;   // Torch (improvised)
+        weaponBonus[8]  = 35;  // Sword
+        weaponBonus[27] = 50;  // IronSword
+        weaponBonus[29] = 60;  // ShadowBlade
+        weaponBonus[33] = 80;  // AncientSword
+        weaponBonus[49] = 45;  // MagicStaff
+        weaponBonus[50] = 30;  // Bow
+        weaponBonus[54] = 70;  // VoidBlade
+        weaponBonus[55] = 55;  // GlacierBlade
+        weaponBonus[71] = 90;  // VoidReaper (legendary)
+        weaponBonus[72] = 75;  // GlacierEdge (legendary)
     }
 
     function setQuestSystem(address _questSystem) external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -179,7 +188,16 @@ contract CombatSystem is AccessControl {
         uint256 playerAtk = ((stats.attackPower + weaponAtk) * atkMul) / SCALE;
         uint256 playerDef = (stats.defense * defMul) / SCALE;
 
-        // HAUNTED_NIGHT: all monster stats +50% at night
+        // SA=4 SHADOW_STEP (Vox): +30% attack at night
+        if (isNight && stats.specialAbility == 4) {
+            playerAtk = playerAtk * 130 / 100;
+        }
+        // SA=2 IRON_WILL (Draven): +20% effective defense
+        if (stats.specialAbility == 2) {
+            playerDef = playerDef * 120 / 100;
+        }
+
+        // HAUNTED_NIGHT/BLOOD_MOON/BEAST_MIGRATION: all monster stats scaled
         uint256 monsterAtk = monster.attack;
         uint256 monsterDef = monster.defense;
         uint256 monsterHp  = monster.hp;

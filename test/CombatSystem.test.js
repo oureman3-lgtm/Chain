@@ -39,8 +39,8 @@ describe("CombatSystem", function () {
     // Monster 1: Shadow – region 3, level 2+
     await combatSystem.addMonster("Shadow", 60, 18, 5, 2, 3, [11], [100], 20);
 
-    // Mint character for player1 (wendy: strong combat stats, level=1)
-    await characterNFT.mintCharacter(player1.address, "wendy");
+    // Mint character for player1 (draven: tank, high defense, level=1)
+    await characterNFT.mintCharacter(player1.address, "draven");
   });
 
   // Helper to call initiateCombat via owner (who has GAME_ROLE)
@@ -97,7 +97,7 @@ describe("CombatSystem", function () {
     const CharacterNFT2 = await ethers.getContractFactory("CharacterNFT");
     const char2 = await CharacterNFT2.deploy(owner.address);
     await char2.waitForDeployment();
-    await char2.mintCharacter(player1.address, "wilson");
+    await char2.mintCharacter(player1.address, "ryn");
 
     const CombatSystem2 = await ethers.getContractFactory("CombatSystem");
     const cs2 = await CombatSystem2.deploy(owner.address, await char2.getAddress(), await itemNFT.getAddress());
