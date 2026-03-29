@@ -13,6 +13,10 @@ import "./ItemNFT.sol";
  *         Emits complete round log for frontend replay animation.
  *
  * Stances: 0=Aggressive(atk×1.3, def×0.7), 1=Balanced(×1.0), 2=Defensive(atk×0.7, def×1.3)
+ *
+ * Monsters have a minRegion requirement in addition to minLevel.
+ * QuestSystem is notified on victory.
+ * EventOracle HAUNTED_NIGHT multiplier is applied when isNight=true.
  */
 contract CombatSystem is AccessControl {
     bytes32 public constant GAME_ROLE = keccak256("GAME_ROLE");
@@ -20,12 +24,16 @@ contract CombatSystem is AccessControl {
     CharacterNFT public characterNFT;
     ItemNFT      public itemNFT;
 
+    address public questSystem;   // optional push notifications
+    address public eventOracle;   // optional HAUNTED_NIGHT multiplier
+
     struct MonsterTemplate {
         string   name;
         uint256  hp;
         uint256  attack;
         uint256  defense;
         uint256  minLevel;
+        uint8    minRegion;     // character must be in this region or higher
         uint256[] lootTypes;    // possible item types to drop
         uint256[] lootWeights;  // cumulative weights for rng pick
         uint256  apCost;        // AP consumed by the player to fight this monster
@@ -81,12 +89,21 @@ contract CombatSystem is AccessControl {
         weaponBonus[6] = 5;   // Torch (improvised)
     }
 
+    function setQuestSystem(address _questSystem) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        questSystem = _questSystem;
+    }
+
+    function setEventOracle(address _eventOracle) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        eventOracle = _eventOracle;
+    }
+
     function addMonster(
         string  calldata name,
         uint256 hp,
         uint256 attack,
         uint256 defense,
         uint256 minLevel,
+        uint8   minRegion,
         uint256[] calldata lootTypes,
         uint256[] calldata lootWeights,
         uint256 apCost
@@ -99,6 +116,7 @@ contract CombatSystem is AccessControl {
             attack:      attack,
             defense:     defense,
             minLevel:    minLevel,
+            minRegion:   minRegion,
             lootTypes:   lootTypes,
             lootWeights: lootWeights,
             apCost:      apCost
@@ -110,29 +128,37 @@ contract CombatSystem is AccessControl {
      * @notice Initiate combat. Fully simulated on-chain.
      *         If using a weapon, caller must own the weaponTokenId.
      *         On death: CharacterNFT.recordDeath() is called.
-     *         On victory: loot NFT is minted.
+     *         On victory: loot NFT is minted. QuestSystem notified.
+     * @param characterId   Character NFT token ID.
+     * @param monsterType   Monster template index.
+     * @param strategy      Player's stance + weapon selection.
+     * @param currentRegion Character's current region (for region gate check).
+     * @param tileId        Current tile ID (for EventOracle check).
+     * @param gameDay       Current game day (for EventOracle check).
+     * @param isNight       Whether it is currently night (for HAUNTED_NIGHT).
      */
     function initiateCombat(
         uint256  characterId,
         uint256  monsterType,
-        Strategy calldata strategy
-    ) external returns (CombatResult memory result) {
-        require(
-            characterNFT.ownerOf(characterId) == msg.sender,
-            "CombatSystem: not character owner"
-        );
-
+        Strategy calldata strategy,
+        uint8    currentRegion,
+        uint256  tileId,
+        uint256  gameDay,
+        bool     isNight
+    ) external onlyRole(GAME_ROLE) returns (CombatResult memory result) {
         MonsterTemplate storage monster = monsters[monsterType];
         require(monster.hp > 0, "CombatSystem: unknown monster");
 
         CharacterNFT.CharacterStats memory stats = characterNFT.getStats(characterId);
         require(stats.level >= monster.minLevel, "CombatSystem: level too low");
+        require(currentRegion >= monster.minRegion, "CombatSystem: region too low");
 
         // Validate weapon ownership
         uint256 weaponAtk = 0;
+        address charOwner = characterNFT.ownerOf(characterId);
         if (strategy.weaponTokenId != 0) {
             require(
-                itemNFT.ownerOf(strategy.weaponTokenId) == msg.sender,
+                itemNFT.ownerOf(strategy.weaponTokenId) == charOwner,
                 "CombatSystem: not weapon owner"
             );
             ItemNFT.ItemData memory weapon = itemNFT.getItem(strategy.weaponTokenId);
@@ -153,9 +179,29 @@ contract CombatSystem is AccessControl {
         uint256 playerAtk = ((stats.attackPower + weaponAtk) * atkMul) / SCALE;
         uint256 playerDef = (stats.defense * defMul) / SCALE;
 
+        // HAUNTED_NIGHT: all monster stats +50% at night
+        uint256 monsterAtk = monster.attack;
+        uint256 monsterDef = monster.defense;
+        uint256 monsterHp  = monster.hp;
+        if (isNight && eventOracle != address(0)) {
+            (bool ok, bytes memory data) = eventOracle.staticcall(
+                abi.encodeWithSignature(
+                    "getCombatMultiplier(uint256,uint256,bool)",
+                    tileId, gameDay, true
+                )
+            );
+            if (ok && data.length >= 32) {
+                uint256 mul = abi.decode(data, (uint256));
+                if (mul > 100) {
+                    monsterAtk = monsterAtk * mul / 100;
+                    monsterDef = monsterDef * mul / 100;
+                    monsterHp  = monsterHp  * mul / 100;
+                }
+            }
+        }
+
         // Simulate rounds
         uint256 playerHp  = stats.maxHealth;
-        uint256 monsterHp = monster.hp;
         uint256 nonce     = combatNonce[characterId]++;
 
         uint256[] memory pHpLog = new uint256[](MAX_ROUNDS);
@@ -172,14 +218,14 @@ contract CombatSystem is AccessControl {
             // Player attacks monster: ±10% variance
             uint256 variance = 90 + (seed % 21); // 90–110
             uint256 rawDmg = (playerAtk * variance) / SCALE;
-            uint256 dmgToMonster = rawDmg > monster.defense ? rawDmg - monster.defense : 1;
+            uint256 dmgToMonster = rawDmg > monsterDef ? rawDmg - monsterDef : 1;
             monsterHp = monsterHp > dmgToMonster ? monsterHp - dmgToMonster : 0;
             totalDamageDealt += dmgToMonster;
 
             // Monster attacks player (use shifted seed bits)
             if (monsterHp > 0) {
                 uint256 mVariance = 90 + ((seed >> 8) % 21);
-                uint256 mRawDmg = (monster.attack * mVariance) / SCALE;
+                uint256 mRawDmg = (monsterAtk * mVariance) / SCALE;
                 uint256 dmgToPlayer = mRawDmg > playerDef ? mRawDmg - playerDef : 1;
                 playerHp = playerHp > dmgToPlayer ? playerHp - dmgToPlayer : 0;
                 totalDamageTaken += dmgToPlayer;
@@ -202,7 +248,7 @@ contract CombatSystem is AccessControl {
         uint256 lootTokenId;
 
         if (victory) {
-            lootTokenId = _rollLoot(monster, nonce, rounds);
+            lootTokenId = _rollLoot(monster, nonce, rounds, charOwner);
         } else {
             characterNFT.recordDeath(characterId);
         }
@@ -218,15 +264,26 @@ contract CombatSystem is AccessControl {
         });
 
         emit CombatFinished(
-            msg.sender, characterId, monsterType,
+            charOwner, characterId, monsterType,
             victory, lootTokenId, rounds
         );
+
+        // Notify QuestSystem
+        if (questSystem != address(0)) {
+            questSystem.call(
+                abi.encodeWithSignature(
+                    "notifyCombat(uint256,uint256,bool)",
+                    characterId, monsterType, victory
+                )
+            );
+        }
     }
 
     function _rollLoot(
         MonsterTemplate storage monster,
         uint256 nonce,
-        uint256 rounds
+        uint256 rounds,
+        address owner
     ) private returns (uint256 tokenId) {
         if (monster.lootTypes.length == 0) return 0;
 
@@ -250,6 +307,6 @@ contract CombatSystem is AccessControl {
             }
         }
 
-        tokenId = itemNFT.mintItem(tx.origin, selectedType);
+        tokenId = itemNFT.mintItem(owner, selectedType);
     }
 }
