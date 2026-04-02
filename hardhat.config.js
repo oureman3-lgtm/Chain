@@ -33,30 +33,42 @@ module.exports = {
     },
 
     // ── Testnets ─────────────────────────────────────────────────────────────
-    polygon_mumbai: {
-      url: process.env.POLYGON_MUMBAI_URL || "https://rpc-mumbai.maticvigil.com",
-      chainId: 80001,
+    // Polygon Amoy (replaces deprecated Mumbai)
+    polygon_amoy: {
+      url: process.env.POLYGON_AMOY_URL || "https://rpc-amoy.polygon.technology",
+      chainId: 80002,
       accounts: [DEPLOYER_KEY],
       gasPrice: "auto"
     },
-    arbitrum_goerli: {
-      url: process.env.ARBITRUM_GOERLI_URL || "https://goerli-rollup.arbitrum.io/rpc",
-      chainId: 421613,
+    // Ethereum Sepolia
+    sepolia: {
+      url: process.env.SEPOLIA_URL || "https://rpc.sepolia.org",
+      chainId: 11155111,
       accounts: [DEPLOYER_KEY],
       gasPrice: "auto"
     },
-    base_goerli: {
-      url: process.env.BASE_GOERLI_URL || "https://goerli.base.org",
-      chainId: 84531,
+    // Arbitrum Sepolia (replaces deprecated Goerli)
+    arbitrum_sepolia: {
+      url: process.env.ARBITRUM_SEPOLIA_URL || "https://sepolia-rollup.arbitrum.io/rpc",
+      chainId: 421614,
       accounts: [DEPLOYER_KEY],
       gasPrice: "auto"
     },
+    // Base Sepolia (replaces deprecated Base Goerli)
+    base_sepolia: {
+      url: process.env.BASE_SEPOLIA_URL || "https://sepolia.base.org",
+      chainId: 84532,
+      accounts: [DEPLOYER_KEY],
+      gasPrice: "auto"
+    },
+    // BSC Testnet
     bsc_testnet: {
-      url: "https://data-seed-prebsc-1-s1.binance.org:8545",
+      url: process.env.BSC_TESTNET_URL || "https://data-seed-prebsc-1-s1.binance.org:8545",
       chainId: 97,
       accounts: [DEPLOYER_KEY],
       gasPrice: 10_000_000_000
     },
+    // Avalanche Fuji
     fuji: {
       url: "https://api.avax-test.network/ext/bc/C/rpc",
       chainId: 43113,
@@ -107,7 +119,10 @@ module.exports = {
     apiKey: {
       mainnet:        ETHERSCAN_KEY,
       polygon:        POLYGONSCAN_KEY,
-      polygonMumbai:  POLYGONSCAN_KEY,
+      polygonAmoy:    POLYGONSCAN_KEY,
+      sepolia:        ETHERSCAN_KEY,
+      arbitrumSepolia: ARBISCAN_KEY,
+      baseSepolia:    BASESCAN_KEY,
       arbitrumOne:    ARBISCAN_KEY,
       base:           BASESCAN_KEY,
       bsc:            BSCSCAN_KEY,
