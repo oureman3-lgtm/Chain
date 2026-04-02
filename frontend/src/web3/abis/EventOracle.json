@@ -1,0 +1,314 @@
+{
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "tileId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "gameDay",
+          "type": "uint256"
+        },
+        {
+          "internalType": "bool",
+          "name": "isNight",
+          "type": "bool"
+        }
+      ],
+      "name": "getCombatMultiplier",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "characterId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "gameDay",
+          "type": "uint256"
+        }
+      ],
+      "name": "getDailyQuestSeed",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "tileId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "gameDay",
+          "type": "uint256"
+        }
+      ],
+      "name": "getGatherMultiplier",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "tileId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "gameDay",
+          "type": "uint256"
+        }
+      ],
+      "name": "getLootMultiplier",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "tileId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "gameDay",
+          "type": "uint256"
+        }
+      ],
+      "name": "getMeteorLootType",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "itemType",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "tileId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "gameDay",
+          "type": "uint256"
+        }
+      ],
+      "name": "getSacredSpringHeal",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "basisPoints",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "tileId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "gameDay",
+          "type": "uint256"
+        }
+      ],
+      "name": "getSanityDecayMultiplier",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "tileId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "gameDay",
+          "type": "uint256"
+        }
+      ],
+      "name": "getSpawnMultiplier",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "tileId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "gameDay",
+          "type": "uint256"
+        }
+      ],
+      "name": "getTileEvent",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "enum EventOracle.EventType",
+              "name": "eventType",
+              "type": "uint8"
+            },
+            {
+              "internalType": "uint256",
+              "name": "intensity",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bool",
+              "name": "requiresAction",
+              "type": "bool"
+            }
+          ],
+          "internalType": "struct EventOracle.EventInfo",
+          "name": "info",
+          "type": "tuple"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "tileId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "gameDay",
+          "type": "uint256"
+        }
+      ],
+      "name": "getVoidRiftLootType",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "itemType",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "tileId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "gameDay",
+          "type": "uint256"
+        }
+      ],
+      "name": "hasAbandonedCamp",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "tileId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "gameDay",
+          "type": "uint256"
+        }
+      ],
+      "name": "hasVoidRift",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    }
+  ]
+}
